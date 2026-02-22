@@ -1,38 +1,35 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
-from app.models.user import UserRole
 
-# Shared properties
-class UserBase(BaseModel):
+
+class UserCreate(BaseModel):
+    name: str
     phone: str
     email: Optional[str] = None
-    full_name: Optional[str] = None
+    password: str
+    role: str = "tenant"
 
-class UserCreate(UserBase):
-    pass
 
-class UserUpdate(UserBase):
-    phone: Optional[str] = None
-
-class OTPRequest(BaseModel):
+class LoginRequest(BaseModel):
     phone: str
-    purpose: str = "login" # "login" or "verification"
+    password: str
 
-class OTPVerify(BaseModel):
+
+class UserResponse(BaseModel):
+    user_id: str
+    name: str
     phone: str
-    code: str
+    email: Optional[str] = None
+    role: str
 
-# Properties to return to client
-class UserResponse(UserBase):
-    id: str
-    role: UserRole
-    is_active: bool
-    is_verified: bool
-    avatar_url: Optional[str] = None
-    
     model_config = ConfigDict(from_attributes=True)
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+
+class UpdateRoleRequest(BaseModel):
+    role: str

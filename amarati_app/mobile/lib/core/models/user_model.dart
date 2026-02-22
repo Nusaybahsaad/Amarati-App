@@ -1,0 +1,47 @@
+class UserModel {
+  final String userId;
+  final String name;
+  final String phone;
+  final String? email;
+  final String role;
+  final String token;
+
+  const UserModel({
+    required this.userId,
+    required this.name,
+    required this.phone,
+    this.email,
+    required this.role,
+    required this.token,
+  });
+
+  factory UserModel.fromJson(Map<String, dynamic> json, String token) {
+    final user = json['user'] ?? json;
+    return UserModel(
+      userId: user['user_id'] ?? '',
+      name: user['name'] ?? '',
+      phone: user['phone'] ?? '',
+      email: user['email'],
+      role: user['role'] ?? 'tenant',
+      token: token,
+    );
+  }
+
+  UserModel copyWith({
+    String? userId,
+    String? name,
+    String? phone,
+    String? email,
+    String? role,
+    String? token,
+  }) {
+    return UserModel(
+      userId: userId ?? this.userId,
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      token: token ?? this.token,
+    );
+  }
+}

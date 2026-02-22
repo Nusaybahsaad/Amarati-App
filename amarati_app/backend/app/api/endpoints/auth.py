@@ -1,35 +1,61 @@
-from fastapi import APIRouter, HTTPException, status
-from app.schemas.user_schema import OTPRequest, OTPVerify, UserResponse, Token
-import uuid
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.schemas.user_schema import UserCreate, LoginRequest, UserResponse, Token, UpdateRoleRequest
+from app.services.auth_service import (
+    register_user,
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+)
+from app.models.user import User
 
 router = APIRouter()
 
-@router.post("/request-otp", response_model=dict)
-async def request_otp(request: OTPRequest):
-    # Simulate saving OTP to database
-    # In a real app, this would integrate with an SMS gateway (e.g., Twilio, Unifonic)
-    return {"message": "OTP sent successfully", "phone": request.phone}
 
-@router.post("/verify-otp", response_model=Token)
-async def verify_otp(request: OTPVerify):
-    # Simulate DB check
-    if request.code != "1234": # Hardcoded for dev
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="رمز التحقق غير صحيح" # Invalid OTP in Arabic
-        )
-    
-    # Simulate user retrieval or creation
-    mock_user = UserResponse(
-        id=str(uuid.uuid4()),
-        phone=request.phone,
-        role="tenant",
-        is_active=True,
-        is_verified=True
+@router.post("/register", response_model=Token)
+async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
+    user = await register_user(
+        name=data.name,
+        phone=data.phone,
+        password=data.password,
+        email=data.email,
+        role=data.role,
+        db=db,
     )
-    
+    token = create_access_token(user.user_id, user.role.value if hasattr(user.role, 'value') else user.role)
     return Token(
-        access_token="mock_jwt_token_for_dev",
+        access_token=token,
         token_type="bearer",
-        user=mock_user
+        user=UserResponse.model_validate(user),
     )
+
+
+@router.post("/login", response_model=Token)
+async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    user = await authenticate_user(data.phone, data.password, db)
+    token = create_access_token(user.user_id, user.role.value if hasattr(user.role, 'value') else user.role)
+    return Token(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse.model_validate(current_user)
+
+
+@router.put("/me/role", response_model=UserResponse)
+async def update_role(
+    data: UpdateRoleRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.role = data.role
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    return UserResponse.model_validate(current_user)

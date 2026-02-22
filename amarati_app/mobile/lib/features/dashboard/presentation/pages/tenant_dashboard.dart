@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/providers/user_provider.dart';
 
 class TenantDashboard extends StatelessWidget {
   const TenantDashboard({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final userName = userProvider.userName.isNotEmpty
+        ? userProvider.userName
+        : 'المستأجر';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -17,41 +24,78 @@ class TenantDashboard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.primary, Color(0xFF6B7B3A)],
+                colors: [AppColors.primary, AppColors.green400],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('مرحباً 👋', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                SizedBox(height: 4),
-                Text('أحمد محمد', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                Text('الوحدة: شقة 301 - عمارة النور', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                const Text(
+                  'مرحباً 👋',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'الوحدة: شقة 301 - عمارة النور',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
           // Quick Actions
-          const Text('الإجراءات السريعة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'الإجراءات السريعة',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _QuickActionCard(icon: Icons.build_circle, label: 'طلب صيانة', color: AppColors.primary)),
+              Expanded(
+                child: _QuickActionCard(
+                  icon: Icons.build_circle,
+                  label: 'طلب صيانة',
+                  color: AppColors.primary,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _QuickActionCard(icon: Icons.receipt_long, label: 'الفواتير', color: AppColors.secondary)),
+              Expanded(
+                child: _QuickActionCard(
+                  icon: Icons.receipt_long,
+                  label: 'الفواتير',
+                  color: AppColors.secondary,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _QuickActionCard(icon: Icons.chat_bubble, label: 'المحادثات', color: AppColors.warning)),
+              Expanded(
+                child: _QuickActionCard(
+                  icon: Icons.chat_bubble,
+                  label: 'المحادثات',
+                  color: AppColors.warning,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 24),
 
           // Active Maintenance Requests
-          const Text('طلبات الصيانة النشطة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'طلبات الصيانة النشطة',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           _MaintenanceCard(
             title: 'تسرب مياه في المطبخ',
@@ -77,7 +121,11 @@ class _QuickActionCard extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _QuickActionCard({required this.icon, required this.label, required this.color});
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +141,14 @@ class _QuickActionCard extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 32),
               const SizedBox(height: 8),
-              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
             ],
           ),
         ),
@@ -108,7 +163,12 @@ class _MaintenanceCard extends StatelessWidget {
   final Color statusColor;
   final String date;
 
-  const _MaintenanceCard({required this.title, required this.status, required this.statusColor, required this.date});
+  const _MaintenanceCard({
+    required this.title,
+    required this.status,
+    required this.statusColor,
+    required this.date,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +177,7 @@ class _MaintenanceCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: const CircleAvatar(
-          backgroundColor: Color(0xFFF0F0F0),
+          backgroundColor: AppColors.green75,
           child: Icon(Icons.build, color: AppColors.primary),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -128,7 +188,14 @@ class _MaintenanceCard extends StatelessWidget {
             color: statusColor.withOpacity(0.15),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(status, style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold)),
+          child: Text(
+            status,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ),
     );

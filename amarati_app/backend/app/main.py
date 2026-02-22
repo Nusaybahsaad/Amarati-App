@@ -1,13 +1,25 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.database import create_tables
 
 from app.api.endpoints import auth, buildings, maintenance, payments, documents, communication
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: create tables
+    await create_tables()
+    yield
+    # Shutdown: nothing to clean up
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Backend API for Amarati Property Management System"
+    description="Backend API for Amarati Property Management System",
+    lifespan=lifespan,
 )
 
 # CORS for Flutter dev
@@ -26,6 +38,7 @@ app.include_router(maintenance.router, prefix=f"{settings.API_V1_STR}/maintenanc
 app.include_router(payments.router, prefix=f"{settings.API_V1_STR}/payments", tags=["Payments"])
 app.include_router(documents.router, prefix=f"{settings.API_V1_STR}/documents", tags=["Documents"])
 app.include_router(communication.router, prefix=f"{settings.API_V1_STR}", tags=["Communication & Chat", "Notifications", "Visits", "Chatbot"])
+
 
 @app.get("/")
 def read_root():

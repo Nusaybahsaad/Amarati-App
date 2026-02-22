@@ -17,7 +17,7 @@ class ProviderDashboard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1B5E20), Color(0xFF388E3C)],
+                colors: [AppColors.primary, AppColors.green400],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

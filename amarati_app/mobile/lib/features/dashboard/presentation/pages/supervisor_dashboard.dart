@@ -17,7 +17,7 @@ class SupervisorDashboard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF2E4057), Color(0xFF456280)],
+                colors: [AppColors.primary, AppColors.green400],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
