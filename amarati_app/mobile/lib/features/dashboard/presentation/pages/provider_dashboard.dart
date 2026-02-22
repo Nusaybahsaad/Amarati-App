@@ -1,315 +1,418 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/providers/user_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 
-class ProviderDashboard extends StatelessWidget {
+class ProviderDashboard extends StatefulWidget {
   const ProviderDashboard({super.key});
 
   @override
+  State<ProviderDashboard> createState() => _ProviderDashboardState();
+}
+
+class _ProviderDashboardState extends State<ProviderDashboard>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    // 3 tabs: 0 - Pending, 1 - In Progress, 2 - Completed.
+    // Initial index set to 0 (Pending) to match screenshot
+    _tabController = TabController(length: 3, vsync: this, initialIndex: 0);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final userName = context.watch<UserProvider>().userName;
+
+    return SafeArea(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Provider Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.green400],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Column(
+          const SizedBox(height: 20),
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'شركة الصيانة',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'شركة الأمان للصيانة',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                const SizedBox(width: 40), // Balance the alignment
+                Expanded(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'شركة صيانة العمارة',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                      if (userName.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          userName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _ProviderStat(value: '⭐ 4.8', label: 'التقييم'),
-                    _ProviderStat(value: '45', label: 'مهمة مكتملة'),
-                    _ProviderStat(value: '3', label: 'مهام نشطة'),
-                  ],
-                ),
+                const SizedBox(width: 40),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // Incoming Tasks
-          const Text(
-            'المهام الواردة',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          _TaskCard(
-            title: 'إصلاح تسرب مياه',
-            building: 'عمارة النور - شقة 301',
-            urgency: 'عاجل',
-            urgencyColor: Colors.red,
-            showActions: true,
-          ),
-          _TaskCard(
-            title: 'فحص تكييف مركزي',
-            building: 'عمارة الزهور - الدور 2',
-            urgency: 'عادي',
-            urgencyColor: AppColors.primary,
-            showActions: true,
-          ),
-          const SizedBox(height: 24),
-
-          // Active Tasks
-          const Text(
-            'المهام النشطة',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          _ActiveTaskCard(
-            title: 'صيانة المصعد',
-            building: 'عمارة النور',
-            status: 'في الطريق',
-            statusIcon: Icons.directions_car,
-          ),
-          const SizedBox(height: 24),
-
-          // Payment Summary
-          const Text(
-            'المدفوعات',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _PaymentCard(
-                  title: 'مستحقة',
-                  amount: '٣,٥٠٠ ر.س',
-                  color: AppColors.warning,
-                ),
+          // Custom TabBar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.grey75.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PaymentCard(
-                  title: 'محصلة هذا الشهر',
-                  amount: '١٢,٠٠٠ ر.س',
-                  color: AppColors.success,
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AppColors.secondary,
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textPrimary,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                dividerColor: Colors.transparent,
+                labelPadding: EdgeInsets.zero,
+                tabs: const [
+                  Tab(text: 'قيد الانتظار (3)'),
+                  Tab(text: 'جارية (2)'),
+                  Tab(text: 'مكتملة (4)'),
+                ],
               ),
-            ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Tab Views
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // Pending (Index 0)
+                _buildTaskList([
+                  _TaskData(
+                    id: '2417',
+                    type: 'كهرباء',
+                    description: 'انقطاع الكهرباء في غرفة المعيشة',
+                    aptNumber: '38',
+                    time: '09:24 ص',
+                    contact: '055 894 2213 - سامي الحري',
+                    collapsed: false,
+                  ),
+                  _TaskData(id: '2418', type: 'سباكة', collapsed: true),
+                  _TaskData(id: '2419', type: 'تكييف', collapsed: true),
+                ]),
+                // In Progress (Index 1)
+                _buildTaskList([]),
+                // Completed (Index 2)
+                _buildTaskList([]),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _ProviderStat extends StatelessWidget {
-  final String value;
-  final String label;
-  const _ProviderStat({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+  Widget _buildTaskList(List<_TaskData> tasks) {
+    if (tasks.isEmpty) {
+      return const Center(
+        child: Text(
+          'لا توجد طلبات هنا',
+          style: TextStyle(color: AppColors.textSecondary),
         ),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
-        ),
-      ],
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: tasks.length,
+      itemBuilder: (context, index) {
+        final task = tasks[index];
+        return _TaskCard(task: task);
+      },
     );
   }
 }
 
-class _TaskCard extends StatelessWidget {
-  final String title;
-  final String building;
-  final String urgency;
-  final Color urgencyColor;
-  final bool showActions;
-  const _TaskCard({
-    required this.title,
-    required this.building,
-    required this.urgency,
-    required this.urgencyColor,
-    this.showActions = false,
+class _TaskData {
+  final String id;
+  final String type;
+  final String description;
+  final String aptNumber;
+  final String time;
+  final String contact;
+  final bool collapsed;
+
+  _TaskData({
+    required this.id,
+    required this.type,
+    this.description = '',
+    this.aptNumber = '',
+    this.time = '',
+    this.contact = '',
+    this.collapsed = false,
   });
+}
+
+class _TaskCard extends StatelessWidget {
+  final _TaskData task;
+
+  const _TaskCard({required this.task});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    // Collapsed design
+    if (task.collapsed) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: AppColors.grey75.withValues(alpha: 0.3),
+          border: Border.all(color: AppColors.secondary, width: 1.0),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.diamond, size: 12, color: Colors.amber),
+                const SizedBox(width: 8),
+                Text(
+                  'طلب رقم: ${task.id}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'نوع الطلب: ${task.type}',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Expanded design
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.grey75.withValues(alpha: 0.3),
+        border: Border.all(color: AppColors.secondary, width: 1.0),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.diamond, size: 12, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text(
+                      'طلب رقم: ${task.id}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'نوع الطلب: ${task.type}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'الوصف: ${task.description}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'رقم الشقة: ${task.aptNumber}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'وقت الساعة: ${task.time}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'معلومات التواصل: ${task.contact}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Action Buttons
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.grey75,
+                      foregroundColor: AppColors.textPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'قبول',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: urgencyColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    urgency,
-                    style: TextStyle(
-                      color: urgencyColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.grey75,
+                      foregroundColor: AppColors.textPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'رفض',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              building,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            if (showActions) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(onPressed: () {}, child: const Text('رفض')),
-                  const SizedBox(width: 8),
-                  ElevatedButton(onPressed: () {}, child: const Text('قبول')),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActiveTaskCard extends StatelessWidget {
-  final String title;
-  final String building;
-  final String status;
-  final IconData statusIcon;
-  const _ActiveTaskCard({
-    required this.title,
-    required this.building,
-    required this.status,
-    required this.statusIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: AppColors.primary.withOpacity(0.05),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primary.withOpacity(0.15),
-          child: Icon(statusIcon, color: AppColors.primary),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(building, style: const TextStyle(fontSize: 12)),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(
-            status,
-            style: const TextStyle(
-              color: AppColors.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          const SizedBox(height: 20),
+
+          // Note Field (Dashed simulation using borders or container)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                // Using solid border instead of dashed for simplicity if package not available
+                border: Border.all(color: AppColors.border, width: 1.5),
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () {},
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Icon(
+                          Icons.arrow_back,
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        textAlign: TextAlign.right,
+                        textDirection: TextDirection.rtl,
+                        decoration: InputDecoration(
+                          hintText: 'إرسال ملاحظة',
+                          hintStyle: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PaymentCard extends StatelessWidget {
-  final String title;
-  final String amount;
-  final Color color;
-  const _PaymentCard({
-    required this.title,
-    required this.amount,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              amount,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

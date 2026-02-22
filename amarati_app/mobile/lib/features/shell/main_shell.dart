@@ -11,6 +11,7 @@ import '../payments/presentation/pages/payments_screen.dart';
 import '../documents/presentation/pages/documents_screen.dart';
 import '../chat/presentation/pages/chat_screen.dart';
 import '../profile/presentation/pages/profile_screen.dart';
+import '../profile/presentation/pages/provider_profile_screen.dart';
 
 class MainShell extends StatefulWidget {
   final String role; // "tenant", "owner", "supervisor", "provider"
@@ -43,8 +44,6 @@ class _MainShellState extends State<MainShell> {
         return 'عمارتي - المالك';
       case 'supervisor':
         return 'عمارتي - المشرف';
-      case 'provider':
-        return 'عمارتي - شركة الصيانة';
       default:
         return 'عمارتي';
     }
@@ -57,8 +56,47 @@ class _MainShellState extends State<MainShell> {
     const ProfileScreen(),
   ];
 
+  Widget _getProviderShell() {
+    // Determine which page to show for the 3 tabs
+    // Map index 0->0, index 1->notifications (mocked for now), index 2->provider profile
+    final providerPages = [
+      const ProviderDashboard(),
+      const Scaffold(body: Center(child: Text('الاشعارات'))),
+      const ProviderProfileScreen(),
+    ];
+
+    // Safety check just in case currentIndex somehow gets > 2
+    final safeIndex = _currentIndex > 2 ? 0 : _currentIndex;
+
+    return Scaffold(
+      body: providerPages[safeIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: safeIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColors.secondary, // Dark brown for active
+        unselectedItemColor: AppColors.textSecondary,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.build),
+            label: 'طلبات الصيانة',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'الاشعارات',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'حسابي'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.role == 'provider') {
+      return _getProviderShell();
+    }
+
     return Scaffold(
       appBar: _currentIndex == 2 || _currentIndex == 3
           ? null // PaymentsScreen and ProfileScreen have their own AppBar
@@ -167,24 +205,28 @@ class _MaintenanceHub extends StatelessWidget {
               status: 'قيد المراجعة',
               statusColor: AppColors.warning,
               date: '20 فبراير 2026',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const MaintenanceTrackerScreen(),
-                ),
-              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MaintenanceTrackerScreen(),
+                  ),
+                );
+              },
             ),
             _RequestCard(
               title: 'عطل في المكيف',
               status: 'تم الإسناد',
               statusColor: AppColors.primary,
               date: '18 فبراير 2026',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const MaintenanceTrackerScreen(),
-                ),
-              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MaintenanceTrackerScreen(),
+                  ),
+                );
+              },
             ),
             _RequestCard(
               title: 'صيانة المصعد (مجتمعية)',
