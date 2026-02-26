@@ -1,116 +1,202 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/providers/user_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/maintenance_service.dart';
 
-class SupervisorDashboard extends StatelessWidget {
+class SupervisorDashboard extends StatefulWidget {
   const SupervisorDashboard({super.key});
 
   @override
+  State<SupervisorDashboard> createState() => _SupervisorDashboardState();
+}
+
+class _SupervisorDashboardState extends State<SupervisorDashboard> {
+  final _maintenanceService = MaintenanceService();
+  List<Map<String, dynamic>> _pendingRequests = [];
+  List<Map<String, dynamic>> _inProgressRequests = [];
+  List<Map<String, dynamic>> _completedRequests = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
+    try {
+      final all = await _maintenanceService.getRequests();
+      _pendingRequests = all.where((r) => r['status'] == 'pending').toList();
+      _inProgressRequests = all
+          .where((r) =>
+              r['status'] == 'accepted' || r['status'] == 'in_progress')
+          .toList();
+      _completedRequests = all
+          .where((r) =>
+              r['status'] == 'completed' || r['status'] == 'rejected')
+          .toList();
+    } catch (e) {
+      // Silently handle error - counts will show 0
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _updateStatus(String requestId, String status) async {
+    try {
+      await _maintenanceService.updateStatus(
+        requestId: requestId,
+        status: status,
+      );
+      await _fetchData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل في تحديث الحالة: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Supervisor Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.green400],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'المشرف',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+    final userName = context.watch<UserProvider>().userName;
+
+    return RefreshIndicator(
+      onRefresh: _fetchData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Supervisor Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primary, AppColors.green400],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'لوحة المراقبة',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    userName.isNotEmpty ? userName : 'المشرف',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'لوحة المراقبة',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _isLoading
+                      ? const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _StatBadge(
+                              value: '${_pendingRequests.length}',
+                              label: 'طلبات جديدة',
+                              color: Colors.orange,
+                            ),
+                            _StatBadge(
+                              value: '${_inProgressRequests.length}',
+                              label: 'قيد التنفيذ',
+                              color: Colors.blue,
+                            ),
+                            _StatBadge(
+                              value: '${_completedRequests.length}',
+                              label: 'مكتملة',
+                              color: Colors.green,
+                            ),
+                          ],
+                        ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Pending Approvals
+            const Text(
+              'بانتظار الموافقة',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_pendingRequests.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'لا توجد طلبات بانتظار الموافقة',
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _StatBadge(
-                      value: '5',
-                      label: 'طلبات جديدة',
-                      color: Colors.orange,
-                    ),
-                    _StatBadge(
-                      value: '3',
-                      label: 'قيد التنفيذ',
-                      color: Colors.blue,
-                    ),
-                    _StatBadge(
-                      value: '12',
-                      label: 'مكتملة',
-                      color: Colors.green,
-                    ),
-                  ],
+              )
+            else
+              ..._pendingRequests.map((req) => _ApprovalCard(
+                    title: '${req['category']} - ${req['description']}',
+                    submittedBy: req['contact_name'] ?? '',
+                    unitNumber: req['unit_number'] ?? '',
+                    onApprove: () =>
+                        _updateStatus(req['request_id'], 'accepted'),
+                    onReject: () =>
+                        _updateStatus(req['request_id'], 'rejected'),
+                  )),
+
+            const SizedBox(height: 24),
+
+            // Reports Section
+            const Text(
+              'التقارير',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _ReportCard(
+                    icon: Icons.assessment,
+                    title: 'تقرير الصيانة',
+                    subtitle: 'الشهري',
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ReportCard(
+                    icon: Icons.account_balance_wallet,
+                    title: 'التقرير المالي',
+                    subtitle: 'المصروفات المشتركة',
+                    color: AppColors.secondary,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // Pending Approvals
-          const Text(
-            'بانتظار الموافقة',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          _ApprovalCard(
-            title: 'صيانة مجتمعية - إصلاح المصعد',
-            submittedBy: 'أحمد - شقة 301',
-            votes: '8/12 صوت',
-          ),
-          _ApprovalCard(
-            title: 'تنظيف الخزان المركزي',
-            submittedBy: 'سعد - شقة 102',
-            votes: '5/12 صوت',
-          ),
-          const SizedBox(height: 24),
-
-          // Reports Section
-          const Text(
-            'التقارير',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _ReportCard(
-                  icon: Icons.assessment,
-                  title: 'تقرير الصيانة',
-                  subtitle: 'الشهري',
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ReportCard(
-                  icon: Icons.account_balance_wallet,
-                  title: 'التقرير المالي',
-                  subtitle: 'المصروفات المشتركة',
-                  color: AppColors.secondary,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -158,11 +244,15 @@ class _StatBadge extends StatelessWidget {
 class _ApprovalCard extends StatelessWidget {
   final String title;
   final String submittedBy;
-  final String votes;
+  final String unitNumber;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
   const _ApprovalCard({
     required this.title,
     required this.submittedBy,
-    required this.votes,
+    required this.unitNumber,
+    required this.onApprove,
+    required this.onReject,
   });
 
   @override
@@ -180,39 +270,29 @@ class _ApprovalCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             ),
             const SizedBox(height: 6),
-            Text(
-              'مقدم من: $submittedBy',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
+            if (submittedBy.isNotEmpty)
+              Text(
+                'مقدم من: $submittedBy${unitNumber.isNotEmpty ? ' - شقة $unitNumber' : ''}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
             const SizedBox(height: 8),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  votes,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+                TextButton(
+                  onPressed: onReject,
+                  child: const Text(
+                    'رفض',
+                    style: TextStyle(color: Colors.red),
                   ),
                 ),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        'رفض',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('موافقة'),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: onApprove,
+                  child: const Text('موافقة'),
                 ),
               ],
             ),

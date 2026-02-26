@@ -1,126 +1,113 @@
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional, List
 import uuid
-from datetime import datetime
+
+from app.core.database import get_db
+from app.models.maintenance_request import MaintenanceRequest
+from app.models.user import User
+from app.schemas.maintenance_schema import (
+    MaintenanceRequestCreate,
+    MaintenanceRequestResponse,
+    MaintenanceStatusUpdate,
+)
+from app.services.auth_service import get_current_user
 
 router = APIRouter()
 
-# ---- Schemas ----
-class MaintenanceCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    request_type: str = "personal"  # personal, community
-    urgency: str = "normal"  # low, normal, urgent
-    building_id: str
-    unit_id: Optional[str] = None
-    preferred_date: Optional[str] = None
-    preferred_time_slot: Optional[str] = None
 
-class VoteCreate(BaseModel):
-    vote: bool = True
-
-class StatusUpdate(BaseModel):
-    status: str
-    notes: Optional[str] = None
-
-class AssignProvider(BaseModel):
-    provider_id: str
-
-# ---- Mock Data ----
-_requests: dict = {}
-_votes: dict = {}
-_providers = [
-    {"id": "p1", "company_name": "شركة الأمان للصيانة", "specialization": "سباكة", "rating": 4.8, "total_jobs": 45, "avg_response_time_hours": 2.5, "price_range": "متوسط", "is_verified": True},
-    {"id": "p2", "company_name": "مؤسسة النجم للتكييف", "specialization": "تكييف", "rating": 4.5, "total_jobs": 32, "avg_response_time_hours": 3.0, "price_range": "مرتفع", "is_verified": True},
-    {"id": "p3", "company_name": "شركة البناء الحديث", "specialization": "كهرباء", "rating": 4.2, "total_jobs": 28, "avg_response_time_hours": 1.5, "price_range": "منخفض", "is_verified": True},
-    {"id": "p4", "company_name": "خدمات الريان", "specialization": "نظافة", "rating": 4.0, "total_jobs": 15, "avg_response_time_hours": 4.0, "price_range": "منخفض", "is_verified": False},
-]
-
-# ---- Endpoints ----
-@router.post("/", response_model=dict)
-async def create_request(req: MaintenanceCreate):
-    rid = str(uuid.uuid4())
-    _requests[rid] = {
-        "id": rid,
-        "title": req.title,
-        "description": req.description,
-        "request_type": req.request_type,
-        "status": "submitted",
-        "urgency": req.urgency,
-        "building_id": req.building_id,
-        "unit_id": req.unit_id,
-        "preferred_date": req.preferred_date,
-        "preferred_time_slot": req.preferred_time_slot,
-        "assigned_provider": None,
-        "votes_for": 0,
-        "votes_against": 0,
-        "status_history": [{"status": "submitted", "time": datetime.utcnow().isoformat(), "notes": "تم تقديم الطلب"}],
-        "created_at": datetime.utcnow().isoformat(),
-    }
-    return _requests[rid]
-
-@router.get("/", response_model=List[dict])
-async def list_requests():
-    return list(_requests.values())
-
-@router.get("/{request_id}", response_model=dict)
-async def get_request(request_id: str):
-    if request_id not in _requests:
-        raise HTTPException(status_code=404, detail="الطلب غير موجود")
-    return _requests[request_id]
-
-@router.put("/{request_id}/status", response_model=dict)
-async def update_status(request_id: str, update: StatusUpdate):
-    if request_id not in _requests:
-        raise HTTPException(status_code=404, detail="الطلب غير موجود")
-    req = _requests[request_id]
-    old_status = req["status"]
-    req["status"] = update.status
-    req["status_history"].append({
-        "status": update.status,
-        "time": datetime.utcnow().isoformat(),
-        "notes": update.notes or f"تم تغيير الحالة من {old_status} إلى {update.status}"
-    })
+# ---- Create a new maintenance request (tenant) ----
+@router.post("/", response_model=MaintenanceRequestResponse, status_code=status.HTTP_201_CREATED)
+async def create_request(
+    data: MaintenanceRequestCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    req = MaintenanceRequest(
+        request_id=str(uuid.uuid4()),
+        description=data.description,
+        category=data.category,
+        status="pending",
+        unit_number=data.unit_number,
+        contact_name=data.contact_name or current_user.name,
+        contact_phone=data.contact_phone or current_user.phone,
+        user_id=current_user.user_id,
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
     return req
 
-@router.post("/{request_id}/assign", response_model=dict)
-async def assign_provider(request_id: str, assign: AssignProvider):
-    if request_id not in _requests:
+
+# ---- List all requests (for provider dashboard) ----
+@router.get("/", response_model=List[MaintenanceRequestResponse])
+async def list_requests(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(MaintenanceRequest).order_by(MaintenanceRequest.created_at.desc())
+    if status_filter:
+        query = query.where(MaintenanceRequest.status == status_filter)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+# ---- List current user's requests (for tenant) ----
+@router.get("/my", response_model=List[MaintenanceRequestResponse])
+async def list_my_requests(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(MaintenanceRequest)
+        .where(MaintenanceRequest.user_id == current_user.user_id)
+        .order_by(MaintenanceRequest.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+# ---- Get single request ----
+@router.get("/{request_id}", response_model=MaintenanceRequestResponse)
+async def get_request(
+    request_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(MaintenanceRequest).where(MaintenanceRequest.request_id == request_id)
+    )
+    req = result.scalar_one_or_none()
+    if not req:
         raise HTTPException(status_code=404, detail="الطلب غير موجود")
-    req = _requests[request_id]
-    provider = next((p for p in _providers if p["id"] == assign.provider_id), None)
-    if not provider:
-        raise HTTPException(status_code=404, detail="مزود الخدمة غير موجود")
-    req["assigned_provider"] = provider
-    req["status"] = "assigned"
-    req["status_history"].append({
-        "status": "assigned",
-        "time": datetime.utcnow().isoformat(),
-        "notes": f"تم إسناد المهمة إلى {provider['company_name']}"
-    })
     return req
 
-@router.post("/{request_id}/vote", response_model=dict)
-async def vote_on_request(request_id: str, vote: VoteCreate):
-    if request_id not in _requests:
+
+# ---- Update request status (provider accepts/rejects/completes) ----
+@router.put("/{request_id}/status", response_model=MaintenanceRequestResponse)
+async def update_status(
+    request_id: str,
+    update: MaintenanceStatusUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(MaintenanceRequest).where(MaintenanceRequest.request_id == request_id)
+    )
+    req = result.scalar_one_or_none()
+    if not req:
         raise HTTPException(status_code=404, detail="الطلب غير موجود")
-    req = _requests[request_id]
-    if vote.vote:
-        req["votes_for"] += 1
-    else:
-        req["votes_against"] += 1
-    return {"votes_for": req["votes_for"], "votes_against": req["votes_against"]}
 
-# ---- Provider Marketplace ----
-@router.get("/providers/marketplace", response_model=List[dict])
-async def list_providers(sort_by: str = "rating"):
-    sorted_providers = sorted(_providers, key=lambda p: p.get(sort_by, 0), reverse=True)
-    return sorted_providers
+    valid_statuses = ["pending", "accepted", "rejected", "in_progress", "completed"]
+    if update.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"الحالة غير صالحة. الحالات المسموحة: {', '.join(valid_statuses)}"
+        )
 
-@router.get("/providers/{provider_id}", response_model=dict)
-async def get_provider(provider_id: str):
-    provider = next((p for p in _providers if p["id"] == provider_id), None)
-    if not provider:
-        raise HTTPException(status_code=404, detail="مزود الخدمة غير موجود")
-    return provider
+    req.status = update.status
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+    return req

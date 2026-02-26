@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../dashboard/presentation/pages/tenant_dashboard.dart';
 import '../dashboard/presentation/pages/owner_dashboard.dart';
@@ -10,8 +11,12 @@ import '../maintenance/presentation/pages/maintenance_tracker_screen.dart';
 import '../payments/presentation/pages/payments_screen.dart';
 import '../documents/presentation/pages/documents_screen.dart';
 import '../chat/presentation/pages/chat_screen.dart';
+import '../notifications/presentation/pages/notifications_screen.dart';
 import '../profile/presentation/pages/profile_screen.dart';
 import '../profile/presentation/pages/provider_profile_screen.dart';
+import '../building/presentation/pages/building_setup_screen.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/user_provider.dart';
 
 class MainShell extends StatefulWidget {
   final String role; // "tenant", "owner", "supervisor", "provider"
@@ -105,10 +110,22 @@ class _MainShellState extends State<MainShell> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.chat),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ChatScreen()),
-                  ),
+                  onPressed: () {
+                    final user = context.read<UserProvider>().user;
+                    if (user?.buildingId == null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BuildingSetupScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ChatScreen()),
+                      );
+                    }
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.folder),
@@ -119,7 +136,12 @@ class _MainShellState extends State<MainShell> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.notifications_outlined),
-                  onPressed: () {},
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -148,94 +170,178 @@ class _MainShellState extends State<MainShell> {
 }
 
 /// Hub screen for maintenance — shows list and quick access to forms
-class _MaintenanceHub extends StatelessWidget {
+class _MaintenanceHub extends StatefulWidget {
   const _MaintenanceHub();
+
+  @override
+  State<_MaintenanceHub> createState() => _MaintenanceHubState();
+}
+
+class _MaintenanceHubState extends State<_MaintenanceHub> {
+  final _maintenanceService = MaintenanceService();
+  List<Map<String, dynamic>> _requests = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRequests();
+  }
+
+  Future<void> _fetchRequests() async {
+    setState(() => _isLoading = true);
+    try {
+      _requests = await _maintenanceService.getMyRequests();
+    } catch (e) {
+      _requests = [];
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'pending':
+        return 'قيد المراجعة';
+      case 'accepted':
+        return 'تم القبول';
+      case 'in_progress':
+        return 'قيد التنفيذ';
+      case 'completed':
+        return 'مكتمل';
+      case 'rejected':
+        return 'مرفوض';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return AppColors.warning;
+      case 'accepted':
+      case 'in_progress':
+        return AppColors.primary;
+      case 'completed':
+        return AppColors.success;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  String _formatDate(String? isoDate) {
+    if (isoDate == null) return '';
+    try {
+      final dt = DateTime.parse(isoDate);
+      final months = [
+        '',
+        'يناير',
+        'فبراير',
+        'مارس',
+        'أبريل',
+        'مايو',
+        'يونيو',
+        'يوليو',
+        'أغسطس',
+        'سبتمبر',
+        'أكتوبر',
+        'نوفمبر',
+        'ديسمبر',
+      ];
+      return '${dt.day} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('الصيانة')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Quick Actions
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionCard(
-                    icon: Icons.add_circle,
-                    label: 'طلب جديد',
-                    color: AppColors.primary,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const MaintenanceRequestScreen(),
+      body: RefreshIndicator(
+        onRefresh: _fetchRequests,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Quick Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionCard(
+                      icon: Icons.add_circle,
+                      label: 'طلب جديد',
+                      color: AppColors.primary,
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MaintenanceRequestScreen(),
+                          ),
+                        );
+                        if (result == true) _fetchRequests();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ActionCard(
+                      icon: Icons.store,
+                      label: 'سوق الخدمات',
+                      color: AppColors.secondary,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProviderMarketplaceScreen(),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ActionCard(
-                    icon: Icons.store,
-                    label: 'سوق الخدمات',
-                    color: AppColors.secondary,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProviderMarketplaceScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'طلبات الصيانة',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'طلبات الصيانة',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
 
-            // Mock active requests
-            _RequestCard(
-              title: 'تسرب مياه في المطبخ',
-              status: 'قيد المراجعة',
-              statusColor: AppColors.warning,
-              date: '20 فبراير 2026',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MaintenanceTrackerScreen(),
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (_requests.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      'لا توجد طلبات صيانة حالياً',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   ),
-                );
-              },
-            ),
-            _RequestCard(
-              title: 'عطل في المكيف',
-              status: 'تم الإسناد',
-              statusColor: AppColors.primary,
-              date: '18 فبراير 2026',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MaintenanceTrackerScreen(),
-                  ),
-                );
-              },
-            ),
-            _RequestCard(
-              title: 'صيانة المصعد (مجتمعية)',
-              status: 'تصويت',
-              statusColor: AppColors.secondary,
-              date: '15 فبراير 2026',
-              onTap: () {},
-            ),
-          ],
+                )
+              else
+                ..._requests.map((req) {
+                  final status = req['status'] ?? 'pending';
+                  return _RequestCard(
+                    title: '${req['category']} - ${req['description']}',
+                    status: _statusLabel(status),
+                    statusColor: _statusColor(status),
+                    date: _formatDate(req['created_at']?.toString()),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MaintenanceTrackerScreen(),
+                        ),
+                      );
+                    },
+                  );
+                }),
+            ],
+          ),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/maintenance_service.dart';
 
 class MaintenanceRequestScreen extends StatefulWidget {
   const MaintenanceRequestScreen({super.key});
@@ -11,12 +12,16 @@ class MaintenanceRequestScreen extends StatefulWidget {
 
 class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
   int _currentStep = 0;
-  String _requestType = 'personal';
-  String _urgency = 'normal';
-  final _titleController = TextEditingController();
+  String _category = 'كهرباء';
   final _descController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _contactNameController = TextEditingController();
+  final _contactPhoneController = TextEditingController();
   String? _selectedTimeSlot;
   DateTime? _selectedDate;
+  bool _isSubmitting = false;
+
+  final _maintenanceService = MaintenanceService();
 
   @override
   Widget build(BuildContext context) {
@@ -45,11 +50,20 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                   )
                 else
                   ElevatedButton(
-                    onPressed: details.onStepContinue,
+                    onPressed: _isSubmitting ? null : details.onStepContinue,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                     ),
-                    child: const Text('إرسال الطلب'),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('إرسال الطلب'),
                   ),
                 const SizedBox(width: 12),
                 if (_currentStep > 0)
@@ -62,29 +76,21 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
           );
         },
         steps: [
-          // Step 1: Type
+          // Step 1: Category
           Step(
             title: const Text('نوع الطلب'),
             isActive: _currentStep >= 0,
             state: _currentStep > 0 ? StepState.complete : StepState.indexed,
             content: Column(
               children: [
-                RadioListTile<String>(
-                  title: const Text('صيانة شخصية (خاصة بوحدتي)'),
-                  subtitle: const Text('إصلاحات داخل شقتك'),
-                  value: 'personal',
-                  groupValue: _requestType,
-                  activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() => _requestType = v!),
-                ),
-                RadioListTile<String>(
-                  title: const Text('صيانة مجتمعية (مشتركة)'),
-                  subtitle: const Text('مصعد، خزان، مناطق مشتركة'),
-                  value: 'community',
-                  groupValue: _requestType,
-                  activeColor: AppColors.primary,
-                  onChanged: (v) => setState(() => _requestType = v!),
-                ),
+                for (final cat in ['كهرباء', 'سباكة', 'تكييف', 'نظافة', 'أخرى'])
+                  RadioListTile<String>(
+                    title: Text(cat),
+                    value: cat,
+                    groupValue: _category,
+                    activeColor: AppColors.primary,
+                    onChanged: (v) => setState(() => _category = v!),
+                  ),
               ],
             ),
           ),
@@ -96,39 +102,35 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
             content: Column(
               children: [
                 TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان المشكلة',
-                    hintText: 'مثال: تسرب مياه',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
                   controller: _descController,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'وصف تفصيلي',
+                    labelText: 'وصف المشكلة',
                     hintText: 'اشرح المشكلة بالتفصيل...',
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _urgency,
+                TextField(
+                  controller: _unitController,
                   decoration: const InputDecoration(
-                    labelText: 'درجة الاستعجال',
+                    labelText: 'رقم الشقة',
+                    hintText: 'مثال: 38',
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'low', child: Text('منخفضة')),
-                    DropdownMenuItem(value: 'normal', child: Text('عادية')),
-                    DropdownMenuItem(value: 'urgent', child: Text('عاجلة')),
-                  ],
-                  onChanged: (v) => setState(() => _urgency = v!),
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('إرفاق صور'),
+                TextField(
+                  controller: _contactNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الشخص للتواصل',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _contactPhoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'رقم هاتف التواصل',
+                  ),
+                  keyboardType: TextInputType.phone,
                 ),
               ],
             ),
@@ -194,23 +196,14 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _ReviewRow('النوع:', _category),
                     _ReviewRow(
-                      'النوع:',
-                      _requestType == 'personal' ? 'شخصية' : 'مجتمعية',
+                      'الوصف:',
+                      _descController.text.isEmpty ? '-' : _descController.text,
                     ),
                     _ReviewRow(
-                      'العنوان:',
-                      _titleController.text.isEmpty
-                          ? '-'
-                          : _titleController.text,
-                    ),
-                    _ReviewRow(
-                      'الاستعجال:',
-                      _urgency == 'urgent'
-                          ? 'عاجلة'
-                          : _urgency == 'normal'
-                          ? 'عادية'
-                          : 'منخفضة',
+                      'رقم الشقة:',
+                      _unitController.text.isEmpty ? '-' : _unitController.text,
                     ),
                     _ReviewRow('الوقت:', _selectedTimeSlot ?? 'لم يحدد'),
                   ],
@@ -223,20 +216,56 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
     );
   }
 
-  void _submitRequest() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم إرسال طلب الصيانة بنجاح ✅'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-    Navigator.pop(context);
+  Future<void> _submitRequest() async {
+    if (_descController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('الرجاء إدخال وصف المشكلة'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await _maintenanceService.createRequest(
+        description: _descController.text.trim(),
+        category: _category,
+        unitNumber: _unitController.text.trim(),
+        contactName: _contactNameController.text.trim(),
+        contactPhone: _contactPhoneController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم إرسال طلب الصيانة بنجاح ✅'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pop(context, true); // return true to indicate success
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('فشل في إرسال الطلب: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
     _descController.dispose();
+    _unitController.dispose();
+    _contactNameController.dispose();
+    _contactPhoneController.dispose();
     super.dispose();
   }
 }

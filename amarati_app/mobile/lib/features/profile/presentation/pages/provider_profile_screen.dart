@@ -9,7 +9,9 @@ class ProviderProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userName = context.watch<UserProvider>().userName;
+    final userProvider = context.watch<UserProvider>();
+    final userName = userProvider.userName;
+    final userEmail = userProvider.user?.email ?? '';
 
     return Scaffold(
       body: SafeArea(
@@ -24,27 +26,33 @@ class ProviderProfileScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.edit, color: AppColors.textSecondary, size: 20),
+                    const Icon(
+                      Icons.edit,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            userName.isNotEmpty ? userName : 'صيانة الشرق',
+                            userName.isNotEmpty ? userName : 'شركة صيانة',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'user@gmail.com',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
+                          if (userEmail.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              userEmail,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -68,7 +76,10 @@ class ProviderProfileScreen extends StatelessWidget {
                 icon: Icons.language,
                 title: 'اللغة',
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.textSecondary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -76,9 +87,23 @@ class ProviderProfileScreen extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('EN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                      Text(
+                        'EN',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                       SizedBox(width: 8),
-                      Text('AR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text(
+                        'AR',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -95,15 +120,12 @@ class ProviderProfileScreen extends StatelessWidget {
                 icon: Icons.help_outline,
                 title: 'المساعدة والدعم',
               ),
-              _buildMenuOption(
-                icon: Icons.info_outline,
-                title: 'حول',
-              ),
+              _buildMenuOption(icon: Icons.info_outline, title: 'حول'),
               _buildMenuOption(
                 icon: Icons.question_answer_outlined,
                 title: 'الأسئلة الشائعة',
               ),
-              
+
               const SizedBox(height: 40),
 
               // Logout Button
@@ -160,7 +182,10 @@ class ProviderProfileScreen extends StatelessWidget {
     return Column(
       children: [
         ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 8,
+          ),
           trailing: Icon(icon, color: AppColors.textPrimary),
           title: Text(
             title,
@@ -171,7 +196,13 @@ class ProviderProfileScreen extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          leading: trailing ?? const Icon(Icons.arrow_back_ios, size: 16, color: AppColors.textSecondary),
+          leading:
+              trailing ??
+              const Icon(
+                Icons.arrow_back_ios,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
           onTap: () {},
         ),
         const Divider(height: 1, thickness: 1, color: AppColors.green75),

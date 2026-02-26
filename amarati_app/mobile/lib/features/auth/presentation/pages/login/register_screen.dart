@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/providers/user_provider.dart';
 import 'login_screen.dart';
@@ -53,11 +54,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
       }
+    } on DioException catch (e) {
+      if (mounted) {
+        String message;
+        if (e.response != null && e.response?.data is Map) {
+          // Extract the specific 'detail' message from the backend
+          message =
+              e.response?.data['detail']?.toString() ??
+              'فشل في إنشاء الحساب. حاول مرة أخرى.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.connectionError) {
+          message =
+              'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
+        } else {
+          message = 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+        }
+        setState(() {
+          _errorMessage = message;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'فشل في إنشاء الحساب. تحقق من البيانات وحاول مرة أخرى.';
+          _errorMessage = 'حدث خطأ غير متوقع. حاول مرة أخرى.';
         });
       }
     } finally {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/providers/user_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/maintenance_service.dart';
 
 class ProviderDashboard extends StatefulWidget {
   const ProviderDashboard({super.key});
@@ -13,13 +14,65 @@ class ProviderDashboard extends StatefulWidget {
 class _ProviderDashboardState extends State<ProviderDashboard>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _maintenanceService = MaintenanceService();
+
+  List<Map<String, dynamic>> _pendingRequests = [];
+  List<Map<String, dynamic>> _inProgressRequests = [];
+  List<Map<String, dynamic>> _completedRequests = [];
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // 3 tabs: 0 - Pending, 1 - In Progress, 2 - Completed.
-    // Initial index set to 0 (Pending) to match screenshot
     _tabController = TabController(length: 3, vsync: this, initialIndex: 0);
+    _fetchRequests();
+  }
+
+  Future<void> _fetchRequests() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final allRequests = await _maintenanceService.getRequests();
+
+      _pendingRequests = allRequests
+          .where((r) => r['status'] == 'pending')
+          .toList();
+      _inProgressRequests = allRequests
+          .where(
+            (r) => r['status'] == 'accepted' || r['status'] == 'in_progress',
+          )
+          .toList();
+      _completedRequests = allRequests
+          .where((r) => r['status'] == 'completed' || r['status'] == 'rejected')
+          .toList();
+    } catch (e) {
+      _error = 'فشل في تحميل الطلبات';
+    }
+
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _updateRequestStatus(String requestId, String status) async {
+    try {
+      await _maintenanceService.updateStatus(
+        requestId: requestId,
+        status: status,
+      );
+      await _fetchRequests();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل في تحديث الحالة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -43,7 +96,7 @@ class _ProviderDashboardState extends State<ProviderDashboard>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(width: 40), // Balance the alignment
+                const SizedBox(width: 40),
                 Expanded(
                   child: Column(
                     children: [
@@ -102,10 +155,10 @@ class _ProviderDashboardState extends State<ProviderDashboard>
                 ),
                 dividerColor: Colors.transparent,
                 labelPadding: EdgeInsets.zero,
-                tabs: const [
-                  Tab(text: 'قيد الانتظار (3)'),
-                  Tab(text: 'جارية (2)'),
-                  Tab(text: 'مكتملة (4)'),
+                tabs: [
+                  Tab(text: 'قيد الانتظار (${_pendingRequests.length})'),
+                  Tab(text: 'جارية (${_inProgressRequests.length})'),
+                  Tab(text: 'مكتملة (${_completedRequests.length})'),
                 ],
               ),
             ),
@@ -114,84 +167,127 @@ class _ProviderDashboardState extends State<ProviderDashboard>
 
           // Tab Views
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // Pending (Index 0)
-                _buildTaskList([
-                  _TaskData(
-                    id: '2417',
-                    type: 'كهرباء',
-                    description: 'انقطاع الكهرباء في غرفة المعيشة',
-                    aptNumber: '38',
-                    time: '09:24 ص',
-                    contact: '055 894 2213 - سامي الحري',
-                    collapsed: false,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _fetchRequests,
+                          child: const Text('إعادة المحاولة'),
+                        ),
+                      ],
+                    ),
+                  )
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildRequestList(_pendingRequests, showActions: true),
+                      _buildRequestList(_inProgressRequests),
+                      _buildRequestList(_completedRequests),
+                    ],
                   ),
-                  _TaskData(id: '2418', type: 'سباكة', collapsed: true),
-                  _TaskData(id: '2419', type: 'تكييف', collapsed: true),
-                ]),
-                // In Progress (Index 1)
-                _buildTaskList([]),
-                // Completed (Index 2)
-                _buildTaskList([]),
-              ],
-            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTaskList(List<_TaskData> tasks) {
-    if (tasks.isEmpty) {
-      return const Center(
-        child: Text(
-          'لا توجد طلبات هنا',
-          style: TextStyle(color: AppColors.textSecondary),
+  Widget _buildRequestList(
+    List<Map<String, dynamic>> requests, {
+    bool showActions = false,
+  }) {
+    if (requests.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'لا توجد طلبات هنا',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _fetchRequests,
+              icon: const Icon(Icons.refresh),
+              label: const Text('تحديث'),
+            ),
+          ],
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        final task = tasks[index];
-        return _TaskCard(task: task);
-      },
+    return RefreshIndicator(
+      onRefresh: _fetchRequests,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: requests.length,
+        itemBuilder: (context, index) {
+          final req = requests[index];
+          final isFirst = index == 0;
+          return _RequestCard(
+            request: req,
+            expanded: isFirst && showActions,
+            showActions: showActions,
+            onAccept: () => _updateRequestStatus(req['request_id'], 'accepted'),
+            onReject: () => _updateRequestStatus(req['request_id'], 'rejected'),
+          );
+        },
+      ),
     );
   }
 }
 
-class _TaskData {
-  final String id;
-  final String type;
-  final String description;
-  final String aptNumber;
-  final String time;
-  final String contact;
-  final bool collapsed;
+class _RequestCard extends StatelessWidget {
+  final Map<String, dynamic> request;
+  final bool expanded;
+  final bool showActions;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
 
-  _TaskData({
-    required this.id,
-    required this.type,
-    this.description = '',
-    this.aptNumber = '',
-    this.time = '',
-    this.contact = '',
-    this.collapsed = false,
+  const _RequestCard({
+    required this.request,
+    this.expanded = false,
+    this.showActions = false,
+    this.onAccept,
+    this.onReject,
   });
-}
 
-class _TaskCard extends StatelessWidget {
-  final _TaskData task;
+  String _formatTime(String? isoDate) {
+    if (isoDate == null) return '';
+    try {
+      final dt = DateTime.parse(isoDate);
+      final hour = dt.hour > 12 ? dt.hour - 12 : dt.hour;
+      final amPm = dt.hour >= 12 ? 'م' : 'ص';
+      return '${hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} $amPm';
+    } catch (_) {
+      return '';
+    }
+  }
 
-  const _TaskCard({required this.task});
+  String _shortId(String id) {
+    // Show last 4 chars as a readable request number
+    return id.length > 4 ? id.substring(id.length - 4).toUpperCase() : id;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final id = request['request_id'] ?? '';
+    final category = request['category'] ?? '';
+    final description = request['description'] ?? '';
+    final unitNumber = request['unit_number'] ?? '';
+    final contactName = request['contact_name'] ?? '';
+    final contactPhone = request['contact_phone'] ?? '';
+    final createdAt = request['created_at']?.toString();
+
     // Collapsed design
-    if (task.collapsed) {
+    if (!expanded) {
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(vertical: 20),
@@ -208,7 +304,7 @@ class _TaskCard extends StatelessWidget {
                 const Icon(Icons.diamond, size: 12, color: Colors.amber),
                 const SizedBox(width: 8),
                 Text(
-                  'طلب رقم: ${task.id}',
+                  'طلب رقم: ${_shortId(id)}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -219,7 +315,7 @@ class _TaskCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'نوع الطلب: ${task.type}',
+              'نوع الطلب: $category',
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -252,7 +348,7 @@ class _TaskCard extends StatelessWidget {
                     const Icon(Icons.diamond, size: 12, color: Colors.amber),
                     const SizedBox(width: 8),
                     Text(
-                      'طلب رقم: ${task.id}',
+                      'طلب رقم: ${_shortId(id)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -263,155 +359,164 @@ class _TaskCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'نوع الطلب: ${task.type}',
+                  'نوع الطلب: $category',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'الوصف: ${task.description}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'الوصف: $description',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'رقم الشقة: ${task.aptNumber}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                ],
+                if (unitNumber.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'رقم الشقة: $unitNumber',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'وقت الساعة: ${task.time}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                ],
+                if (createdAt != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'وقت الساعة: ${_formatTime(createdAt)}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'معلومات التواصل: ${task.contact}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                ],
+                if (contactName.isNotEmpty || contactPhone.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'معلومات التواصل: $contactPhone - $contactName',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
 
           // Action Buttons
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.grey75,
-                      foregroundColor: AppColors.textPrimary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+          if (showActions) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onAccept,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'قبول',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.grey75,
-                      foregroundColor: AppColors.textPrimary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'رفض',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                      child: const Text(
+                        'قبول',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onReject,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.grey75,
+                        foregroundColor: AppColors.textPrimary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        'رفض',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Note Field (Dashed simulation using borders or container)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                // Using solid border instead of dashed for simplicity if package not available
-                border: Border.all(color: AppColors.border, width: 1.5),
-              ),
-              child: IntrinsicHeight(
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () {},
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Icon(
-                          Icons.arrow_back,
-                          color: AppColors.textSecondary,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        textAlign: TextAlign.right,
-                        textDirection: TextDirection.rtl,
-                        decoration: InputDecoration(
-                          hintText: 'إرسال ملاحظة',
-                          hintStyle: const TextStyle(
+            // Note Field
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border, width: 1.5),
+                ),
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      InkWell(
+                        onTap: () {},
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Icon(
+                            Icons.arrow_back,
                             color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            size: 20,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: TextField(
+                          textAlign: TextAlign.right,
+                          textDirection: TextDirection.rtl,
+                          decoration: InputDecoration(
+                            hintText: 'إرسال ملاحظة',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

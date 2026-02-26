@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dio/dio.dart';
@@ -12,7 +11,7 @@ class AuthService {
     if (Platform.isAndroid) return 'http://10.0.2.2:8000/api/v1/auth';
     return 'http://127.0.0.1:8000/api/v1/auth';
   }
-  
+
   final Dio _dio = Dio();
 
   Future<UserModel> register({

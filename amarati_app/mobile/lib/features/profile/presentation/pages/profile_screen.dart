@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../notifications/presentation/pages/notification_preferences_screen.dart';
+import '../../../../core/providers/user_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -11,13 +14,29 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _showAvatar = true;
   bool _buildingOnlyVisibility = false;
-  bool _maintenanceNotifs = true;
-  bool _paymentNotifs = true;
-  bool _chatNotifs = true;
   String _language = 'ar';
+
+  String _roleLabel(String role) {
+    switch (role) {
+      case 'owner':
+        return 'مالك';
+      case 'tenant':
+        return 'مستأجر';
+      case 'supervisor':
+        return 'مشرف';
+      case 'provider':
+        return 'شركة صيانة';
+      default:
+        return role;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final userName = userProvider.userName;
+    final userRole = _roleLabel(userProvider.userRole);
+
     return Scaffold(
       appBar: AppBar(title: const Text('الملف الشخصي')),
       body: SingleChildScrollView(
@@ -57,13 +76,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'أحمد محمد',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              userName.isNotEmpty ? userName : 'مستخدم',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const Text(
-              'مستأجر • شقة 301',
-              style: TextStyle(color: AppColors.textSecondary),
+            Text(
+              userRole,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),
 
@@ -87,23 +106,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Notification Preferences
             _SectionHeader(title: 'تفضيلات الإشعارات'),
-            SwitchListTile(
-              title: const Text('إشعارات الصيانة'),
-              value: _maintenanceNotifs,
-              activeColor: AppColors.primary,
-              onChanged: (v) => setState(() => _maintenanceNotifs = v),
-            ),
-            SwitchListTile(
-              title: const Text('إشعارات المدفوعات'),
-              value: _paymentNotifs,
-              activeColor: AppColors.primary,
-              onChanged: (v) => setState(() => _paymentNotifs = v),
-            ),
-            SwitchListTile(
-              title: const Text('إشعارات المحادثات'),
-              value: _chatNotifs,
-              activeColor: AppColors.primary,
-              onChanged: (v) => setState(() => _chatNotifs = v),
+            ListTile(
+              leading: const Icon(
+                Icons.notifications_active,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text('إعدادات الإشعارات'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationPreferencesScreen(),
+                  ),
+                );
+              },
             ),
             const Divider(),
 

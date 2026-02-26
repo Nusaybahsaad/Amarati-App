@@ -1,5 +1,4 @@
-import enum
-from sqlalchemy import Column, String, Enum
+from sqlalchemy import Column, String, Enum, ForeignKey, JSON
 from app.core.database import Base
 
 
@@ -20,3 +19,6 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=True)
     password = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), default=UserRole.tenant, nullable=False)
+    building_id = Column(String(36), ForeignKey("buildings.id"), nullable=True)
+    notification_preferences = Column(JSON, nullable=True)
+
